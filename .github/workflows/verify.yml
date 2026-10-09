@@ -1,0 +1,45 @@
+name: Verify BazarDor
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mongodb:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ ping: 1 }).ok'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install
+      - name: Lint, typecheck, unit tests and production build
+        run: npm run verify
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Test production app on desktop, tablet and mobile
+        run: npm run test:e2e
+      - name: Preserve dependency lockfile and test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bazardor-verification
+          path: |
+            package-lock.json
+            playwright-report/
+            test-results/
+          retention-days: 7
